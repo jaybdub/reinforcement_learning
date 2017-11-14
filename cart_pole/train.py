@@ -28,6 +28,7 @@ GAMMA = 0.99
 P_FINAL = 0.01
 T_P_FINAL = 70000.0
 P_RATE = - np.log(P_FINAL) / T_P_FINAL
+USE_CUDA = True
 
 optimizers = {
     'sgd': SGD,
@@ -42,7 +43,7 @@ samplers = {
 
 
 def tensor_argmax(t):
-    return int(t.data.numpy().argmax())
+    return int(t.data.cpu().numpy().argmax())
 
 
 def p_random(step):
@@ -53,6 +54,8 @@ def p_random(step):
 if __name__ == '__main__':
 
     model = CartPoleModel()
+    if USE_CUDA:
+        model.cuda()
 
     replay = ReplayMemory(DEFAULT_REPLAY_CAPACITY)
 
@@ -82,7 +85,7 @@ if __name__ == '__main__':
             # sample action
             action = random.randrange(2)
             if random.random() > p_random(net_step):
-                action = tensor_argmax(model(Variable(Tensor(state), volatile=True)))
+                action = tensor_argmax(model(Variable(Tensor(state).cuda(), volatile=True)))
 
             # step environment
             next_state, reward, done, info = env.step(action)
@@ -99,15 +102,15 @@ if __name__ == '__main__':
 
         batch = next(sampler.__iter__())
 
-        q_now = model(Variable(batch[0].float()))
-        q_next = model(Variable(batch[3].float(), volatile=True))
+        q_now = model(Variable(batch[0].float().cuda()))
+        q_next = model(Variable(batch[3].float().cuda(), volatile=True))
 
-        reward_now = q_now.gather(1, Variable(batch[1][:, None]))
+        reward_now = q_now.gather(1, Variable(batch[1][:, None].cuda()))
         reward_next = q_next.max(1)[0][:, None]
         reward_next.volatile = False
-        reward_trans_target = Variable(batch[2][:, None].float())
+        reward_trans_target = Variable(batch[2][:, None].float().cuda())
         reward_now_target = reward_trans_target + GAMMA * reward_next * \
-            Variable(batch[4][:, None].float())
+            Variable(batch[4][:, None].float().cuda())
 
         loss = F.smooth_l1_loss(reward_now, reward_now_target)
         #print(loss, step, reward_now_target.max())
@@ -116,5 +119,5 @@ if __name__ == '__main__':
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        print(episode, loss.data.numpy()[0], step, net_step, p_random(net_step))
+        print(episode, loss.data.cpu().numpy()[0], step, net_step, p_random(net_step))
 
