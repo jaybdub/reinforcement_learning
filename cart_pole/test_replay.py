@@ -1,3 +1,7 @@
+# Neural network model(s) for the pygym 'CartPoleEnv'
+#
+# author: John Welsh
+
 from torch.utils.data.dataloader import DataLoader
 from replay import ReplayMemory
 import unittest
