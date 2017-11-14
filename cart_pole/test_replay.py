@@ -1,5 +1,6 @@
-import unittest
+from torch.utils.data.dataloader import DataLoader
 from replay import ReplayMemory
+import unittest
 
 
 class ReplayMemoryTest(unittest.TestCase):
@@ -15,7 +16,7 @@ class ReplayMemoryTest(unittest.TestCase):
         self.replay.push(11)
         self.assertEqual(len(self.replay), 10)
         self.assertEqual(self.replay[0], 11)
-    
+
 
 if __name__ == '__main__':
     unittest.main()
