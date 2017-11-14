@@ -14,8 +14,8 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 # arguments
-DEFAULT_NUM_EPISODES = 10000
-DEFAULT_MAX_EPISODE_LENGTH = 3000
+DEFAULT_NUM_EPISODES = 100000
+DEFAULT_MAX_EPISODE_LENGTH = 9000
 DEFAULT_VISUALIZE = True
 DEFAULT_REPLAY_CAPACITY = 100000
 DEFAULT_BATCH_SIZE = 1024
@@ -25,10 +25,14 @@ DEFAULT_OPTIMIZER = 'rmsprop'
 DEFAULT_OPTIMIZER_LR = 0.0001
 DEFAULT_OPTIMIZER_MOMENTUM = 0.0
 GAMMA = 0.99
+P_FINAL = 0.01
+T_P_FINAL = 70000.0
+P_RATE = - np.log(P_FINAL) / T_P_FINAL
 
 optimizers = {
     'sgd': SGD,
-    'rmsprop': RMSprop
+    'rmsprop': RMSprop,
+    'adam': Adam
 }
 
 samplers = {
@@ -36,8 +40,14 @@ samplers = {
     'sequential': SequentialSampler
 }
 
+
 def tensor_argmax(t):
     return int(t.data.numpy().argmax())
+
+
+def p_random(step):
+    return np.exp(-P_RATE * step)
+
 
 
 if __name__ == '__main__':
@@ -58,6 +68,7 @@ if __name__ == '__main__':
     optimizer = optimizers[DEFAULT_OPTIMIZER](model.parameters())
 
     env = CartPoleEnv()
+    net_step = 0
 
     for episode in range(DEFAULT_NUM_EPISODES):
 
@@ -70,7 +81,7 @@ if __name__ == '__main__':
 
             # sample action
             action = random.randrange(2)
-            if random.random() < 0.95:
+            if random.random() > p_random(net_step):
                 action = tensor_argmax(model(Variable(Tensor(state), volatile=True)))
 
             # step environment
@@ -84,9 +95,7 @@ if __name__ == '__main__':
 
             # (update model?)
             step += 1
-
-            # update model
-            #pdb.set_trace()
+            net_step += 1
 
         batch = next(sampler.__iter__())
 
@@ -107,5 +116,5 @@ if __name__ == '__main__':
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        print(episode, step)
+        print(episode, loss.data.numpy()[0], step, net_step, p_random(net_step))
 
