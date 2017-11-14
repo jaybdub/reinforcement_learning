@@ -1,4 +1,4 @@
 from collections import namedtuple
 
-Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state'))
+Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state', 'valid'))
 
