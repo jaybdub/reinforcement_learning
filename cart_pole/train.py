@@ -1,17 +1,17 @@
-import random
-import pdb
-import torch
-from transition import Transition
-from torch import Tensor, LongTensor
-import numpy as np
+# import pdb
+# import torch
 from gym.envs.classic_control import CartPoleEnv
-from replay import ReplayMemory
 from model import CartPoleModel
+from replay import ReplayMemory
+from torch import Tensor
+from torch.autograd import Variable
 from torch.optim import SGD, Adam, RMSprop
 from torch.utils.data.dataloader import DataLoader, BatchSampler, \
                                         RandomSampler, SequentialSampler
+from transition import Transition
+import numpy as np
+import random
 import torch.nn.functional as F
-from torch.autograd import Variable
 
 # arguments
 DEFAULT_NUM_EPISODES = 100000
@@ -26,7 +26,7 @@ DEFAULT_OPTIMIZER_LR = 0.0001
 DEFAULT_OPTIMIZER_MOMENTUM = 0.0
 GAMMA = 0.99
 P_FINAL = 0.01
-T_P_FINAL = 70000.0
+T_P_FINAL = 1000.0
 P_RATE = - np.log(P_FINAL) / T_P_FINAL
 USE_CUDA = True
 
@@ -50,6 +50,11 @@ def p_random(step):
     return np.exp(-P_RATE * step)
 
 
+def compute_weights(keys, bins=100):
+    counts, bin_ranges = np.histogram(keys, bins=bins)
+    weights = 1.0 / counts[np.digitize(keys, bins=bin_ranges[1:-1])]
+    return weights
+
 
 if __name__ == '__main__':
 
@@ -60,10 +65,10 @@ if __name__ == '__main__':
     replay = ReplayMemory(DEFAULT_REPLAY_CAPACITY)
 
     sampler = DataLoader(
-        replay, 
+        replay,
         batch_sampler=BatchSampler(
-            sampler=samplers[DEFAULT_SAMPLER](replay), 
-            batch_size=DEFAULT_BATCH_SIZE, \
+            sampler=RandomSampler(replay),
+            batch_size=DEFAULT_BATCH_SIZE,
             drop_last=DEFAULT_DROP_LAST
         )
     )
@@ -75,7 +80,7 @@ if __name__ == '__main__':
 
     for episode in range(DEFAULT_NUM_EPISODES):
 
-        state = env.reset() 
+        state = env.reset()
         done = False
         step = 0
 
@@ -84,14 +89,16 @@ if __name__ == '__main__':
 
             # sample action
             action = random.randrange(2)
-            if random.random() > p_random(net_step):
-                action = tensor_argmax(model(Variable(Tensor(state).cuda(), volatile=True)))
+            if random.random() > p_random(episode):
+                action = tensor_argmax(model(Variable(Tensor(state).cuda(),
+                                             volatile=True)))
 
             # step environment
             next_state, reward, done, info = env.step(action)
             valid = 1
             if done:
                 valid = 0
+
             # add to replay memory
             replay.push(Transition(state, action, reward, next_state, valid))
             state = next_state
@@ -112,12 +119,13 @@ if __name__ == '__main__':
         reward_now_target = reward_trans_target + GAMMA * reward_next * \
             Variable(batch[4][:, None].float().cuda())
 
+        # pdb.set_trace()
         loss = F.smooth_l1_loss(reward_now, reward_now_target)
-        #print(loss, step, reward_now_target.max())
+        # print(loss, step, reward_now_target.max())
 
         model.zero_grad()
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        print(episode, loss.data.cpu().numpy()[0], step, net_step, p_random(net_step))
-
+        print(episode, loss.data.cpu().numpy()[0], step, net_step,
+              p_random(episode))

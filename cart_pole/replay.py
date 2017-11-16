@@ -3,8 +3,8 @@
 # author: John Welsh
 
 
-import model
 from torch.utils.data import Dataset
+import numpy as np
 
 
 class ReplayMemory(Dataset):
@@ -31,4 +31,3 @@ class ReplayMemory(Dataset):
 
     def __getitem__(self, items):
         return self._memory[items]
-
